@@ -557,7 +557,7 @@ function loadLocal() {
 }
 function persist() { LS.set('yf.tasks', state.tasks); LS.set('yf.exams', state.exams); }
 
-function isoDate(v) { const s = String(v); return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : s; }
+function isoDate(v) { const s = String(v); if (s.indexOf('T') > 0) { const d = new Date(s); return isNaN(d.getTime()) ? s : iso(d); } return s.slice(0, 10); }
 function coerceTask(t) {
   return {
     id: String(t.id), date: isoDate(t.date), subject: String(t.subject), task_name: String(t.task_name || ''),
