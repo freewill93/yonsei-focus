@@ -585,23 +585,51 @@ async function apiSync() {
 }
 function apiPost(action, payload) {
   if (!CONFIG.API_URL) return;
-  try { fetch(CONFIG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, payload }) }).catch(() => {}); } catch (e) { /* 무시 */ }
+  try {
+    fetch(CONFIG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, payload }), keepalive: true }).catch(() => {});
+  } catch (e) { /* 무시 */ }
 }
 
+/* 동기화 큐 — 편집 버스트를 병합해 id별 최신 상태만 전송 (Apps Script 도착 순서 뒤섞임 방지) */
+const syncQueue = new Map(); // key: 'task:id' | 'exam:id' → { kind, id }
+let syncTimer = null;
+function queueSync(kind, id) {
+  if (!CONFIG.API_URL) return;
+  syncQueue.set(kind + ':' + id, { kind, id });
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(flushSync, 2000);
+}
+function flushSync() {
+  if (!CONFIG.API_URL || syncQueue.size === 0) return;
+  const batch = Array.from(syncQueue.values());
+  syncQueue.clear();
+  for (const { kind, id } of batch) {
+    const exists = kind === 'task' ? state.tasks.find((t) => t.id === id) : state.exams.find((x) => x.id === id);
+    if (exists) {
+      apiPost(kind === 'task' ? 'updateTask' : 'addExam', exists); // 서버는 id upsert — 항상 최신 상태 전체 전송
+    } else {
+      apiPost(kind === 'task' ? 'deleteTask' : 'deleteExam', { id }); // 큐에 올랐다가 삭제된 경우
+    }
+  }
+}
+['pagehide', 'visibilitychange'].forEach((ev) => {
+  window.addEventListener(ev, () => { if (ev === 'visibilitychange' && document.visibilityState !== 'hidden') return; clearTimeout(syncTimer); flushSync(); });
+});
+
 /* ═══════════ 변경 연산 ═══════════ */
-function addTask(t) { state.tasks.push(t); persist(); apiPost('addTask', t); renderAll(); }
+function addTask(t) { state.tasks.push(t); persist(); queueSync('task', t.id); renderAll(); }
 function updateTask(id, patch) {
   const t = state.tasks.find((x) => x.id === id); if (!t) return;
-  Object.assign(t, patch); persist(); apiPost('updateTask', t); renderAll();
+  Object.assign(t, patch); persist(); queueSync('task', id); renderAll();
 }
 function deleteTask(id) {
   state.tasks = state.tasks.filter((x) => x.id !== id);
-  confirmDeleteId = null; persist(); apiPost('deleteTask', { id }); renderAll();
+  confirmDeleteId = null; persist(); queueSync('task', id); renderAll();
 }
-function addExam(exam) { state.exams.push(exam); persist(); apiPost('addExam', exam); renderAll(); }
+function addExam(exam) { state.exams.push(exam); persist(); queueSync('exam', exam.id); renderAll(); }
 function deleteExam(id) {
   state.exams = state.exams.filter((x) => x.id !== id);
-  confirmExamId = null; persist(); apiPost('deleteExam', { id }); renderAll();
+  confirmExamId = null; persist(); queueSync('exam', id); renderAll();
 }
 
 /* ═══════════ 토스트 · 모달 ═══════════ */
