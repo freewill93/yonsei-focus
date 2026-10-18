@@ -1,0 +1,18 @@
+{
+  "name": "연세 포커스",
+  "short_name": "연세포커스",
+  "description": "수능 D데이 카운트다운, 매일 학습 기록, 실전 모의고사 타이머",
+  "lang": "ko",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#070D1B",
+  "theme_color": "#003289",
+  "icons": [
+    { "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
