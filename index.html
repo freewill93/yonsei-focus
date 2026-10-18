@@ -589,13 +589,13 @@ async function apiSync() {
   } catch (e) { /* 조용히 로컬 모드 유지 */ }
 }
 function apiPost(action, payload) {
-  if (!CONFIG.API_URL) return;
+  if (!CONFIG.API_URL) return Promise.resolve();
   inFlightSync++;
   try {
-    fetch(CONFIG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, payload }), keepalive: true })
+    return fetch(CONFIG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, payload }), keepalive: true })
       .catch(() => {})
       .finally(() => { inFlightSync--; });
-  } catch (e) { inFlightSync--; /* 무시 */ }
+  } catch (e) { inFlightSync--; return Promise.resolve(); }
 }
 
 /* 동기화 큐 — 편집 버스트를 병합해 id별 최신 상태만 전송 (Apps Script 도착 순서 뒤섞임 방지) */
@@ -613,14 +613,26 @@ function flushSync() {
   if (!CONFIG.API_URL || syncQueue.size === 0) return;
   const batch = Array.from(syncQueue.values());
   syncQueue.clear();
-  LS.set('yf.pending', []);
+  const jobs = [];
   for (const { kind, id } of batch) {
     const exists = kind === 'task' ? state.tasks.find((t) => t.id === id) : state.exams.find((x) => x.id === id);
-    if (exists) {
-      apiPost(kind === 'task' ? 'updateTask' : 'addExam', exists); // 서버는 id upsert — 항상 최신 상태 전체 전송
-    } else {
-      apiPost(kind === 'task' ? 'deleteTask' : 'deleteExam', { id }); // 큐에 올랐다가 삭제된 경우
-    }
+    // 서버는 id upsert — 항상 최신 상태 전체 전송 (큐에 올랐다가 삭제된 경우는 delete)
+    jobs.push(exists ? apiPost(kind === 'task' ? 'updateTask' : 'addExam', exists)
+                     : apiPost(kind === 'task' ? 'deleteTask' : 'deleteExam', { id }));
+  }
+  // 전송이 '완료된' 항목만 영속 큐에서 제거 — 실패해도 다음 기동 재생이 복구 (이후 새로 큐에 오른 항목은 유지)
+  Promise.all(jobs).then(() => {
+    const done = new Set(batch.map((b) => b.kind + ':' + b.id));
+    LS.set('yf.pending', LS.get('yf.pending', []).filter((p) => p && !done.has(p.kind + ':' + p.id)));
+  });
+}
+/* 언로드 긴급 전송 — 큐를 비우지 않고 최선 시도만. 실제 보장은 다음 기동 시 재생이 담당 (서버 upsert 멱등) */
+function emergencyFlush() {
+  if (!CONFIG.API_URL || syncQueue.size === 0) return;
+  for (const { kind, id } of syncQueue.values()) {
+    const exists = kind === 'task' ? state.tasks.find((t) => t.id === id) : state.exams.find((x) => x.id === id);
+    if (exists) apiPost(kind === 'task' ? 'updateTask' : 'addExam', exists);
+    else apiPost(kind === 'task' ? 'deleteTask' : 'deleteExam', { id });
   }
 }
 /* 시작 시 미전송 큐 재생 — 비정상 종료/이탈로 전송 못 한 로컬 변경 보호 (서버 upsert는 id 기준 멱등) */
@@ -639,7 +651,7 @@ function replayPending() {
   }
 }
 ['pagehide', 'visibilitychange'].forEach((ev) => {
-  window.addEventListener(ev, () => { if (ev === 'visibilitychange' && document.visibilityState !== 'hidden') return; clearTimeout(syncTimer); flushSync(); });
+  window.addEventListener(ev, () => { if (ev === 'visibilitychange' && document.visibilityState !== 'hidden') return; clearTimeout(syncTimer); emergencyFlush(); });
 });
 
 /* ═══════════ 변경 연산 ═══════════ */
