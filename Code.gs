@@ -135,59 +135,76 @@ function readAll_(name) {
       var key = String(headers[c]).trim();
       if (!key) continue;
       // 시트가 'YYYY-MM-DD' 를 Date 셀로 자동 변환한 경우 UTC ISO 문자열로 직렬화되는 것을 방지
-      obj[key] = row[c] instanceof Date ? Utilities.formatDate(row[c], tz, 'yyyy-MM-dd') : row[c];
+      // (instanceof 는 런타임에 따라 실패할 수 있어 교차 검증)
+      var isDate = row[c] instanceof Date || Object.prototype.toString.call(row[c]) === '[object Date]';
+      obj[key] = isDate ? Utilities.formatDate(row[c], tz, 'yyyy-MM-dd') : row[c];
       if (row[c] !== '' && row[c] !== null) hasData = true;
     }
     if (hasData && obj.id) rows.push(obj);
   }
-  return rows;
+  // 같은 id 가 중복 적재된 경우 마지막 행(최신) 우선 — 자가 치유
+  var byId = {};
+  for (var r = 0; r < rows.length; r++) byId[rows[r].id] = rows[r];
+  return Object.keys(byId).map(function (k) { return byId[k]; });
 }
 
-/** id 로 행을 찾아 덮어쓰고, 없으면 추가 (헤더 이름 매핑) */
+/** id 로 행을 찾아 덮어쓰고, 없으면 추가 (헤더 이름 매핑) — 스크립트 잠금으로 동시 쓰기 직렬화 */
 function upsertRow_(name, payload) {
-  var sheet = getSheet_(name);
-  var headers = HEADERS[name];
-  var lastRow = sheet.getLastRow();
-  var idCol = headers.indexOf('id') + 1;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000); // 동시 실행 직렬화 — 같은 id 중복 append 방지
+  try {
+    var sheet = getSheet_(name);
+    var headers = HEADERS[name];
+    var lastRow = sheet.getLastRow();
+    var idCol = headers.indexOf('id') + 1;
 
-  var rowIdx = -1;
-  if (payload.id && lastRow >= 2) {
-    var ids = sheet.getRange(2, idCol, lastRow - 1, 1).getValues();
-    for (var i = 0; i < ids.length; i++) {
-      if (String(ids[i][0]) === String(payload.id)) {
-        rowIdx = i + 2;
-        break;
+    var rowIdx = -1;
+    if (payload.id && lastRow >= 2) {
+      var ids = sheet.getRange(2, idCol, lastRow - 1, 1).getValues();
+      for (var i = 0; i < ids.length; i++) {
+        if (String(ids[i][0]) === String(payload.id)) {
+          rowIdx = i + 2;
+          break;
+        }
       }
     }
-  }
 
-  var record = {};
-  headers.forEach(function (h) { record[h] = payload[h]; });
-  record.id = payload.id || Utilities.getUuid(); // 프론트가 보낸 id 우선, 없으면 새로 발급
+    var record = {};
+    headers.forEach(function (h) { record[h] = payload[h]; });
+    record.id = payload.id || Utilities.getUuid(); // 프론트가 보낸 id 우선, 없으면 새로 발급
 
-  var row = headers.map(function (h) {
-    return record[h] === undefined ? '' : record[h];
-  });
+    var row = headers.map(function (h) {
+      return record[h] === undefined ? '' : record[h];
+    });
 
-  if (rowIdx === -1) {
-    sheet.appendRow(row);
-  } else {
-    sheet.getRange(rowIdx, 1, 1, row.length).setValues([row]);
+    if (rowIdx === -1) {
+      sheet.appendRow(row);
+    } else {
+      sheet.getRange(rowIdx, 1, 1, row.length).setValues([row]);
+    }
+  } finally {
+    lock.releaseLock();
   }
 }
 
 /** id 로 행 삭제 */
 function deleteRow_(name, id) {
   if (!id) throw new Error('missing id');
-  var sheet = getSheet_(name);
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return;
-  var idCol = HEADERS[name].indexOf('id') + 1;
-  var ids = sheet.getRange(2, idCol, lastRow - 1, 1).getValues();
-  for (var i = ids.length - 1; i >= 0; i--) {
-    if (String(ids[i][0]) === String(id)) {
-      sheet.deleteRow(i + 2);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sheet = getSheet_(name);
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+    var idCol = HEADERS[name].indexOf('id') + 1;
+    var ids = sheet.getRange(2, idCol, lastRow - 1, 1).getValues();
+    for (var i = ids.length - 1; i >= 0; i--) {
+      if (String(ids[i][0]) === String(id)) {
+        sheet.deleteRow(i + 2);
+      }
     }
+  } finally {
+    lock.releaseLock();
   }
 }
 
