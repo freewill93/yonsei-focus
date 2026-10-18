@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Yonsei Focus">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A3FA8"/>
+      <stop offset="1" stop-color="#002A72"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="115" fill="url(#bg)"/>
+  <g stroke="#FFFFFF" stroke-width="66" stroke-linecap="round" fill="none">
+    <path d="M150 140 256 268"/>
+    <path d="M362 140 256 268"/>
+    <path d="M256 268V388"/>
+  </g>
+</svg>
