@@ -571,12 +571,17 @@ function coerceExam(x) {
     mistake_note_completed: x.mistake_note_completed === true || x.mistake_note_completed === 'TRUE' || x.mistake_note_completed === 'true'
   };
 }
+let lastLocalMutation = 0;
+let inFlightSync = 0;
 async function apiSync() {
   if (!CONFIG.API_URL) return;
   try {
     const r = await fetch(CONFIG.API_URL + '?action=list', { cache: 'no-store' });
     const j = await r.json();
     if (j && j.ok && Array.isArray(j.tasks) && Array.isArray(j.exams)) {
+      // 로컬 쓰기가 대기 중이거나 전송 중/직후면 적용 연기 — 로컬 편집을 서버 상태로 덮어쓰는 경쟁 방지
+      const busy = inFlightSync > 0 || syncQueue.size > 0 || Date.now() - lastLocalMutation < 5000;
+      if (busy) { setTimeout(apiSync, 3000); return; }
       state.tasks = j.tasks.map(coerceTask);
       state.exams = j.exams.map(coerceExam);
       persist(); renderAll();
@@ -585,9 +590,12 @@ async function apiSync() {
 }
 function apiPost(action, payload) {
   if (!CONFIG.API_URL) return;
+  inFlightSync++;
   try {
-    fetch(CONFIG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, payload }), keepalive: true }).catch(() => {});
-  } catch (e) { /* 무시 */ }
+    fetch(CONFIG.API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ action, payload }), keepalive: true })
+      .catch(() => {})
+      .finally(() => { inFlightSync--; });
+  } catch (e) { inFlightSync--; /* 무시 */ }
 }
 
 /* 동기화 큐 — 편집 버스트를 병합해 id별 최신 상태만 전송 (Apps Script 도착 순서 뒤섞임 방지) */
@@ -595,6 +603,7 @@ const syncQueue = new Map(); // key: 'task:id' | 'exam:id' → { kind, id }
 let syncTimer = null;
 function queueSync(kind, id) {
   if (!CONFIG.API_URL) return;
+  lastLocalMutation = Date.now();
   syncQueue.set(kind + ':' + id, { kind, id });
   clearTimeout(syncTimer);
   syncTimer = setTimeout(flushSync, 2000);

@@ -1,5 +1,5 @@
 /* 연세 포커스 Service Worker — 오프라인 프리캐시 */
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE_NAME = 'yonsei-focus-' + CACHE_VERSION;
 
 const PRECACHE_URLS = [
