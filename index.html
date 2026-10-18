@@ -605,6 +605,7 @@ function queueSync(kind, id) {
   if (!CONFIG.API_URL) return;
   lastLocalMutation = Date.now();
   syncQueue.set(kind + ':' + id, { kind, id });
+  LS.set('yf.pending', Array.from(syncQueue.values())); // 비정상 종료 대비 큐 영속화
   clearTimeout(syncTimer);
   syncTimer = setTimeout(flushSync, 2000);
 }
@@ -612,6 +613,7 @@ function flushSync() {
   if (!CONFIG.API_URL || syncQueue.size === 0) return;
   const batch = Array.from(syncQueue.values());
   syncQueue.clear();
+  LS.set('yf.pending', []);
   for (const { kind, id } of batch) {
     const exists = kind === 'task' ? state.tasks.find((t) => t.id === id) : state.exams.find((x) => x.id === id);
     if (exists) {
@@ -619,6 +621,21 @@ function flushSync() {
     } else {
       apiPost(kind === 'task' ? 'deleteTask' : 'deleteExam', { id }); // 큐에 올랐다가 삭제된 경우
     }
+  }
+}
+/* 시작 시 미전송 큐 재생 — 비정상 종료/이탈로 전송 못 한 로컬 변경 보호 (서버 upsert는 id 기준 멱등) */
+function replayPending() {
+  if (!CONFIG.API_URL) return;
+  const pending = LS.get('yf.pending', []);
+  if (!Array.isArray(pending) || !pending.length) return;
+  LS.set('yf.pending', []);
+  lastLocalMutation = Date.now(); // 재성 중·직후에는 apiSync 적용 연기 — 재생 쓰기 이후의 최신 목록을 받아오도록
+  for (const item of pending) {
+    const kind = item && item.kind, id = item && item.id;
+    if (!kind || !id) continue;
+    const exists = kind === 'task' ? state.tasks.find((t) => t.id === id) : state.exams.find((x) => x.id === id);
+    if (exists) apiPost(kind === 'task' ? 'updateTask' : 'addExam', exists);
+    else apiPost(kind === 'task' ? 'deleteTask' : 'deleteExam', { id });
   }
 }
 ['pagehide', 'visibilitychange'].forEach((ev) => {
@@ -1272,6 +1289,7 @@ function boot() {
   renderAll();
   setTab('home');
   registerSW();
+  replayPending();
   apiSync();
 }
 document.addEventListener('DOMContentLoaded', boot);
