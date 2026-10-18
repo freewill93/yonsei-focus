@@ -464,13 +464,16 @@ const EXAM_SUBJECTS = ['국어', '수학', '영어', '사문', '세계사'];
 const EXAM_DUR = { '국어': 80, '수학': 100, '영어': 70, '사문': 30, '세계사': 30 };
 const REAL_TIMELINE = [
   { type: 'subject', subject: '국어', minutes: 80, clock: '08:40–10:00' },
-  { type: 'break', label: '휴식·입실', minutes: 30, clock: '10:00–10:30' },
+  { type: 'break', label: '휴식', minutes: 20, clock: '10:00–10:20' },
+  { type: 'break', label: '입실·준비', minutes: 10, clock: '10:20–10:30' },
   { type: 'subject', subject: '수학', minutes: 100, clock: '10:30–12:10' },
-  { type: 'break', label: '점심·입실', minutes: 60, clock: '12:10–13:10' },
+  { type: 'break', label: '점심', minutes: 50, clock: '12:10–13:00' },
+  { type: 'break', label: '입실·준비', minutes: 10, clock: '13:00–13:10' },
   { type: 'subject', subject: '영어', minutes: 70, clock: '13:10–14:20' },
-  { type: 'break', label: '휴식·입실', minutes: 30, clock: '14:20–14:50' },
+  { type: 'break', label: '휴식', minutes: 20, clock: '14:20–14:40' },
+  { type: 'break', label: '입실·준비', minutes: 10, clock: '14:40–14:50' },
   { type: 'break', label: '한국사(필수)', minutes: 30, clock: '14:50–15:20' },
-  { type: 'break', label: '답지 회수', minutes: 15, clock: '15:20–15:35' },
+  { type: 'break', label: '답지 회수·배부', minutes: 15, clock: '15:20–15:35' },
   { type: 'subject', subject: '사문', minutes: 30, clock: '15:35–16:05' },
   { type: 'break', label: '문제지 회수', minutes: 2, clock: '16:05–16:07' },
   { type: 'subject', subject: '세계사', minutes: 30, clock: '16:07–16:37' }
