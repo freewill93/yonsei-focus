@@ -1142,7 +1142,7 @@ function startPomo(task) {
   beep(1);
   requestWakeLock();
   tick();
-  timer.int = setInterval(tick, 250);
+  timer.int = setInterval(tick, 300);
   $('#skipBtn').hidden = false;
   $('#runModeTag').textContent = '뽀모도로';
   renderTaskList();
