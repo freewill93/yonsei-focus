@@ -1099,7 +1099,7 @@ function buildPomoBlocks(task) {
   const color = SUBJECT_COLORS[task.subject] || SUBJECT_COLORS['기타'];
   const blocks = [];
   for (let i = 0; i < 4; i++) {
-    blocks.push({ type: 'focus', label: task.task_name, minutes: 25, color });
+    blocks.push({ type: 'focus', label: task.task_name, minutes: 30, color });
     if (i < 3) blocks.push({ type: 'break', label: '잠깐 휴식', minutes: 5 });
   }
   let acc = 0;
