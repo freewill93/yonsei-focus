@@ -1314,7 +1314,7 @@ function finishSession() {
   document.title = '연세 포커스';
   renderFinishList();
   if (timer.mode === 'pomo') {
-    $('#finishMeta').textContent = '집중 ' + timer.focusDone + '뽀모 · 총 ' + (timer.focusDone * 25) + '분 · 이제 15분 정도 긴 휴식을 가져보세요';
+    $('#finishMeta').textContent = '집중 ' + timer.focusDone + '뽀모 · 총 ' + (timer.focusDone * 30) + '분 · 이제 15분 정도 긴 휴식을 가져보세요';
   } else {
     const subjCount = timer.blocks.filter((b) => b.type === 'subject').length;
     const totalMin = timer.blocks[timer.blocks.length - 1].endMs / 60000;
